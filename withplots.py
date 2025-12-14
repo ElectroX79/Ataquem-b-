@@ -504,6 +504,22 @@ datatop_g4['Mean_Abs_SHAP'] = datatop_g4['Mean_Abs_SHAP'] / datatop_g4['Mean_Abs
 
 data_in = pd.read_csv("cavalli_statistical.csv", sep=",")
 
+# Limpiar data_in: eliminar columnas no numéricas (como 'Unnamed: 0')
+if 'Unnamed: 0' in data_in.columns:
+    # Guardar el índice antes de eliminarlo
+    sample_ids = data_in['Unnamed: 0']
+    data_in = data_in.drop(columns=['Unnamed: 0'])
+    data_in.index = sample_ids  # Usar los IDs como índice
+else:
+    # Si no existe 'Unnamed: 0', verificar otras columnas no numéricas
+    non_numeric_cols = data_in.select_dtypes(exclude=[np.number]).columns.tolist()
+    if non_numeric_cols:
+        print(f"Eliminando columnas no numéricas: {non_numeric_cols}")
+        # Guardar la primera columna no numérica como índice si existe
+        if len(non_numeric_cols) > 0:
+            data_in.index = data_in[non_numeric_cols[0]]
+        data_in = data_in.select_dtypes(include=[np.number])
+
 # Indexar los DataFrames por 'Gene'
 datatop_g3_indexed = datatop_g3.set_index('Gene')
 datatop_g4_indexed = datatop_g4.set_index('Gene')
@@ -563,7 +579,7 @@ plot_umap_binary(
     save_as="umap_subgroups",
     seed=42,
     title='UMAP: Medulloblastoma Subgroups',
-    show=True,
+    show=False,  # Cambiado a False para evitar problemas sin GUI
     marker_size=10
 )
 
@@ -573,6 +589,228 @@ print("\n2. Generando UMAP con puntuación de Group 3...")
 g3_scores = pd.Series(weighted_sum_g3_norm.values, index=data_in.index)
 g3_scores.name = 'Group 3 Score'
 
+# 3. UMAP con puntuación continua de Group 4
+print("\n3. Generando UMAP con puntuación de Group 4...")
+g4_scores = pd.Series(weighted_sum_g4_norm.values, index=data_in.index)
+g4_scores.name = 'Group 4 Score'
+
+# Crear visualización con ambos scores en UNA SOLA GRÁFICA con DOS LEYENDAS
+print("\n   Generando visualización combinada con dos leyendas...")
+import plotly.graph_objects as go
+
+# Calcular UMAP una sola vez
+umap_combined = umap.UMAP(n_components=2, random_state=42)
+X_umap_combined = umap_combined.fit_transform(data_in)
+
+# Crear figura con dos trazas (una para cada colorbar)
+fig_overlay = go.Figure()
+
+# Traza 1: Group 3 Score (Reds)
+fig_overlay.add_trace(
+    go.Scatter(
+        x=X_umap_combined[:, 0],
+        y=X_umap_combined[:, 1],
+        mode='markers',
+        marker=dict(
+            size=10,
+            color=g3_scores.values,
+            colorscale='Reds',
+            showscale=True,
+            cmin=0,
+            cmax=1,
+            colorbar=dict(
+                title="Group 3<br>Score",
+                titleside="right",
+                thickness=20,
+                len=0.4,
+                y=0.75,  # Posición superior
+                yanchor="middle",
+                x=1.02,
+            ),
+            line=dict(width=1, color='darkred'),  # Borde para distinguir
+        ),
+        text=data_in.index,
+        customdata=np.column_stack((g3_scores.values, g4_scores.values)),
+        hovertemplate='<b>%{text}</b><br>' +
+                      'G3 Score: %{customdata[0]:.3f}<br>' +
+                      'G4 Score: %{customdata[1]:.3f}<extra></extra>',
+        name='Group 3',
+        visible=True
+    )
+)
+
+# Traza 2: Group 4 Score (Blues) - inicialmente invisible
+fig_overlay.add_trace(
+    go.Scatter(
+        x=X_umap_combined[:, 0],
+        y=X_umap_combined[:, 1],
+        mode='markers',
+        marker=dict(
+            size=10,
+            color=g4_scores.values,
+            colorscale='Blues',
+            showscale=True,
+            cmin=0,
+            cmax=1,
+            colorbar=dict(
+                title="Group 4<br>Score",
+                titleside="right",
+                thickness=20,
+                len=0.4,
+                y=0.25,  # Posición inferior
+                yanchor="middle",
+                x=1.02,
+            ),
+            line=dict(width=1, color='darkblue'),  # Borde para distinguir
+        ),
+        text=data_in.index,
+        customdata=np.column_stack((g3_scores.values, g4_scores.values)),
+        hovertemplate='<b>%{text}</b><br>' +
+                      'G3 Score: %{customdata[0]:.3f}<br>' +
+                      'G4 Score: %{customdata[1]:.3f}<extra></extra>',
+        name='Group 4',
+        visible='legendonly'  # Inicialmente solo en leyenda
+    )
+)
+
+# Configurar layout con botones para alternar entre vistas
+fig_overlay.update_layout(
+    title={
+        'text': "UMAP: Group 3 & Group 4 Signature Scores<br>" +
+                "<sub>Click legend to toggle between Group 3 (Red) and Group 4 (Blue) views</sub>",
+        'x': 0.5,
+        'xanchor': 'center'
+    },
+    xaxis_title="UMAP 1",
+    yaxis_title="UMAP 2",
+    template="simple_white",
+    width=1000,
+    height=800,
+    hovermode='closest',
+    legend=dict(
+        x=0.02,
+        y=0.98,
+        bgcolor='rgba(255, 255, 255, 0.8)',
+        bordercolor='black',
+        borderwidth=1
+    ),
+    # Añadir botones para cambiar entre vistas
+    updatemenus=[
+        dict(
+            type="buttons",
+            direction="left",
+            x=0.5,
+            xanchor="center",
+            y=1.15,
+            yanchor="top",
+            buttons=[
+                dict(
+                    label="Group 3",
+                    method="update",
+                    args=[{"visible": [True, False]},
+                          {"title": "UMAP: Group 3 Signature Score"}]
+                ),
+                dict(
+                    label="Group 4",
+                    method="update",
+                    args=[{"visible": [False, True]},
+                          {"title": "UMAP: Group 4 Signature Score"}]
+                ),
+                dict(
+                    label="Both",
+                    method="update",
+                    args=[{"visible": [True, True]},
+                          {"title": "UMAP: Group 3 & Group 4 Signature Scores (Overlay)"}]
+                ),
+            ],
+        )
+    ]
+)
+
+# Guardar
+fig_overlay.write_html("umap_group3_and_group4_overlay.html")
+print("   Guardado: umap_group3_and_group4_overlay.html")
+print("   --> Click en la leyenda o usa los botones para alternar entre Group 3 y Group 4")
+
+# También crear versión side-by-side como opción
+from plotly.subplots import make_subplots
+
+fig_sidebyside = make_subplots(
+    rows=1, cols=2,
+    subplot_titles=('Group 3 Signature Score', 'Group 4 Signature Score'),
+    horizontal_spacing=0.12
+)
+
+# Panel izquierdo - Group 3
+fig_sidebyside.add_trace(
+    go.Scatter(
+        x=X_umap_combined[:, 0],
+        y=X_umap_combined[:, 1],
+        mode='markers',
+        marker=dict(
+            size=8,
+            color=g3_scores.values,
+            colorscale='Reds',
+            showscale=True,
+            cmin=0,
+            cmax=1,
+            colorbar=dict(
+                title="Group 3<br>Score",
+                x=0.46,
+                len=0.5
+            )
+        ),
+        text=data_in.index,
+        customdata=g3_scores.values,
+        hovertemplate='<b>%{text}</b><br>G3 Score: %{customdata:.3f}<extra></extra>',
+        showlegend=False
+    ),
+    row=1, col=1
+)
+
+# Panel derecho - Group 4
+fig_sidebyside.add_trace(
+    go.Scatter(
+        x=X_umap_combined[:, 0],
+        y=X_umap_combined[:, 1],
+        mode='markers',
+        marker=dict(
+            size=8,
+            color=g4_scores.values,
+            colorscale='Blues',
+            showscale=True,
+            cmin=0,
+            cmax=1,
+            colorbar=dict(
+                title="Group 4<br>Score",
+                x=1.02,
+                len=0.5
+            )
+        ),
+        text=data_in.index,
+        customdata=g4_scores.values,
+        hovertemplate='<b>%{text}</b><br>G4 Score: %{customdata:.3f}<extra></extra>',
+        showlegend=False
+    ),
+    row=1, col=2
+)
+
+fig_sidebyside.update_xaxes(title_text="UMAP 1", row=1, col=1)
+fig_sidebyside.update_xaxes(title_text="UMAP 1", row=1, col=2)
+fig_sidebyside.update_yaxes(title_text="UMAP 2", row=1, col=1)
+fig_sidebyside.update_yaxes(title_text="UMAP 2", row=1, col=2)
+
+fig_sidebyside.update_layout(
+    title_text="UMAP: Group 3 vs Group 4 Signature Scores",
+    template="simple_white",
+    width=1400,
+    height=600,
+)
+
+fig_sidebyside.write_html("umap_group3_vs_group4_sidebyside.html")
+print("   Guardado: umap_group3_vs_group4_sidebyside.html")
+
+# Guardar las individuales también
 plot_umap_spectrum(
     data=data_in,
     clinical=g3_scores,
@@ -582,16 +820,11 @@ plot_umap_spectrum(
     save_as="umap_group3_score",
     seed=42,
     title='UMAP: Group 3 Signature Score',
-    show=True,
+    show=False,
     marker_size=10,
     color_range=[0, 1],
     colorbar_title='Group 3 Score'
 )
-
-# 3. UMAP con puntuación continua de Group 4
-print("\n3. Generando UMAP con puntuación de Group 4...")
-g4_scores = pd.Series(weighted_sum_g4_norm.values, index=data_in.index)
-g4_scores.name = 'Group 4 Score'
 
 plot_umap_spectrum(
     data=data_in,
@@ -602,7 +835,7 @@ plot_umap_spectrum(
     save_as="umap_group4_score",
     seed=42,
     title='UMAP: Group 4 Signature Score',
-    show=True,
+    show=False,
     marker_size=10,
     color_range=[0, 1],
     colorbar_title='Group 4 Score'
@@ -619,7 +852,7 @@ plot_umap_binary(
     save_as="umap_3d_subgroups",
     seed=42,
     title='3D UMAP: Medulloblastoma Subgroups',
-    show=True,
+    show=False,  # Cambiado a False
     marker_size=6
 )
 
