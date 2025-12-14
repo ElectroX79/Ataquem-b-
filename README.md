@@ -1,8 +1,6 @@
-Perfecto, aquí tienes la versión del README en **inglés** y **catalán**, reflejando que `base.py` tiene todo menos gráficos:
 
----
 
-# LightGBM Data Analysis Project
+# LightGBM Data Analysis Project (Ataquem bé)
 
 This project contains multiple scripts for training multiclass classification models using LightGBM and analyzing feature (gene) importance with SHAP. The scripts are organized by complexity and functionality.
 
@@ -71,7 +69,7 @@ python k_foldvariation.py
 
 ---
 
-# Projecte d’Anàlisi de Dades amb LightGBM
+# Projecte d’Anàlisi de Dades amb LightGBM (Ataquem bé)
 
 Aquest projecte conté diversos scripts per entrenar models de classificació multiclasse amb LightGBM i analitzar la importància de les features (gens) amb SHAP. Els scripts estan organitzats segons la seva complexitat i funcionalitat.
 
