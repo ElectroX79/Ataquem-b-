@@ -138,6 +138,4 @@ python k_foldvariation.py
 
 ---
 
-Si quieres, puedo preparar **una versión final lista para GitHub** con estructura de carpetas, badges y secciones de resultados, en inglés y catalán.
 
-¿Quieres que haga eso?
